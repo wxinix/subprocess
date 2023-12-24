@@ -46,14 +46,14 @@ std::string escape_shell_arg(const std::string& arg);
 /**
  * Retrieves the current working directory of the calling process.
  */
-std::string getcwd();
+std::string get_cwd();
 
 /**
  * Sets the current working directory of the calling process.
  *
  * @param path The path to set as the current working directory.
  */
-void setcwd(const std::string& path);
+void set_cwd(const std::string& path);
 
 /**
  * Converts the provided directory path to an absolute path.

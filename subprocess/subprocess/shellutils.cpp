@@ -368,12 +368,12 @@ std::string abspath(std::string dir, std::string relative)
     {
         if (relative.empty())
         {
-            relative = subprocess::getcwd();
+            relative = subprocess::get_cwd();
         }
 
         if (!is_absolute_path(relative))
         {
-            relative = join_path(subprocess::getcwd(), relative);
+            relative = join_path(subprocess::get_cwd(), relative);
         }
 
         result = join_path(relative, dir);
@@ -424,12 +424,12 @@ std::string escape_shell_arg(const std::string& arg)
     return result;
 }
 
-std::string getcwd()
+std::string get_cwd()
 {
     return std::filesystem::current_path().string();
 }
 
-void setcwd(const std::string& path)
+void set_cwd(const std::string& path)
 {
     std::filesystem::current_path(path);
 }

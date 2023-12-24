@@ -59,12 +59,12 @@ class CwdGuard
 public:
     CwdGuard()
     {
-        m_cwd = subprocess::getcwd();
+        m_cwd = subprocess::get_cwd();
     }
 
     ~CwdGuard()
     {
-        subprocess::setcwd(m_cwd);
+        subprocess::set_cwd(m_cwd);
     }
 
 private:
