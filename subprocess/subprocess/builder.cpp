@@ -604,7 +604,12 @@ std::string ProcessBuilder::windows_args(const CommandLine& cmd)
         {
             args += ' ';
         }
+
+#ifdef _WIN32
+        args += escape_shell_arg(cmd[i], false); // Do not add quote
+#else
         args += escape_shell_arg(cmd[i]);
+#endif
     }
     return args;
 }
