@@ -382,17 +382,21 @@ std::string abspath(std::string dir, std::string relative)
     return result;
 }
 
-std::string escape_shell_arg(const std::string& arg)
+std::string escape_shell_arg(const std::string& arg, bool escape)
 {
     // Check if quoting is necessary
     bool needs_quote = false;
-    for (const char c : arg)
+
+    if (escape)
     {
-        // Alrightlist: alphanumeric, dot, underscore, hyphen, plus, slash
-        if (0 != std::isalnum(c) || c == '.' || c == '_' || c == '-' || c == '+' || c == '/')
+        for (const char c : arg)
         {
-            needs_quote = true;
-            break;
+            // Alrightlist: alphanumeric, dot, underscore, hyphen, plus, slash
+            if (0 == std::isalnum(c) || c == '.' || c == '_' || c == '-' || c == '+' || c == '/')
+            {
+                needs_quote = true;
+                break;
+            }
         }
     }
 

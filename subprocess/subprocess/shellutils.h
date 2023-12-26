@@ -41,7 +41,7 @@ void find_program_clear_cache();
  * The purpose is to handle special characters or cases where quoting might
  * be necessary to ensure the argument is interpreted correctly by the shell.
  */
-std::string escape_shell_arg(const std::string& arg);
+std::string escape_shell_arg(const std::string& arg, bool esccape = true);
 
 /**
  * Retrieves the current working directory of the calling process.
