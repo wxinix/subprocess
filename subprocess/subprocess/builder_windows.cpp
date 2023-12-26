@@ -78,6 +78,10 @@ Popen ProcessBuilder::run_command(const CommandLine& cmdline)
         process.cin = cin_pair.output;
         (void)disable_inherit(cin_pair.output);
     }
+    else if (cin_option == PipeOption::none)
+    {
+        siStartInfo.hStdInput = nullptr;
+    }
     else
     {
     }
@@ -99,6 +103,10 @@ Popen ProcessBuilder::run_command(const CommandLine& cmdline)
     {
         pipe_set_inheritable(cout_pipe, true);
         siStartInfo.hStdOutput = cout_pipe;
+    }
+    else if (cout_option == PipeOption::none)
+    {
+        siStartInfo.hStdOutput = nullptr;
     }
     else // (cout_option == PipeOption::cerr)
     {
@@ -125,6 +133,10 @@ Popen ProcessBuilder::run_command(const CommandLine& cmdline)
     {
         pipe_set_inheritable(cerr_pipe, true);
         siStartInfo.hStdError = cerr_pipe;
+    }
+    else if (cerr_option == PipeOption::none)
+    {
+        siStartInfo.hStdError = nullptr;
     }
     else
     {
