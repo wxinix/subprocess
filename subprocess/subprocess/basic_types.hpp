@@ -179,7 +179,8 @@ enum class PipeOption : int
     cerr,     ///< Redirects to stderr
     specific, ///< Redirects to a provided pipe (made inheritable)
     pipe,     ///< Redirects to a new handle created for you
-    close     ///< Closes the pipe (troll the child)
+    close,    ///< Closes the pipe (troll the child)
+    none      ///< No file descriptor, i.e., not connected to parent process or the console.
 };
 
 /*
