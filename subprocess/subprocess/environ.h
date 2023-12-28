@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mutex>
 #include <string>
 
 #include "basic_types.hpp"
@@ -25,6 +26,19 @@ public:
 
 private:
     std::string m_name;
+};
+
+struct EnvLock
+{
+public:
+    EnvLock()
+    {
+        m_guard = std::make_unique<std::lock_guard<std::mutex>>(mtx);
+    }
+
+private:
+    static inline std::mutex mtx{};
+    std::unique_ptr<std::lock_guard<std::mutex>> m_guard;
 };
 
 /** Used for working with environment variables */
