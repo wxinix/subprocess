@@ -56,6 +56,22 @@ struct RunOptions
     PipeVar cerr{PipeOption::inherit}; // NOLINT
 
     /**
+     * Option indicating that the new process should be created without a
+     * console window. This flag is typically used for GUI applications or
+     * background processes that do not require an interactive console.
+     * The absence of a console window can be useful in scenarios where
+     * it is not desirable that a command prompt window is visible to the user.
+     */
+    bool create_no_window{false}; // NOLINT
+
+    /**
+     *  Option indicating that the subprocess will be created as a detached
+     *  process. A detached process is not associated with the creating process,
+     *  and it does not inherit the console of the parent process.
+     */
+    bool detached_process{false}; // NOLINT
+
+    /**
      * @brief Set to true to run the subprocess as a new process group.
      */
     bool new_process_group{false}; // NOLINT
@@ -225,6 +241,16 @@ public:
      */
     void close_cin();
 
+    /**
+     * Kills the process by sending CTRL_BREAK_EVENT signal. This makes kill()
+     * the same as terminate().
+     * @param value True to enable, false to disable.
+     */
+    void enable_soft_kill(bool value)
+    {
+        m_soft_kill = value;
+    }
+
     friend ProcessBuilder;
 
 private:
@@ -241,6 +267,7 @@ private:
      */
     PROCESS_INFORMATION process_info{};
 #endif
+    bool m_soft_kill {false};
 };
 
 /**
@@ -290,6 +317,18 @@ public:
      * @brief Pipe handle for cout (standard output) stream.
      */
     PipeHandle cout_pipe{kBadPipeValue}; // NOLINT
+
+    /**
+     * Flag indicating the new process will be created without a console window.
+     */
+    bool create_no_window{false}; // NOLINT
+
+    /**
+     * Flag indicating the the new process will be created as a detached process.
+     * A detached process is not associated withe the creating process and it does
+     * not inherit the console of the parent process.
+     */
+    bool detached_process{false}; // NOLINT
 
     /**
      * @brief Flag indicating whether to create a new process group.
@@ -513,6 +552,18 @@ struct RunBuilder
     [[maybe_unused]] RunBuilder& new_process_group(bool new_group)
     {
         options.new_process_group = new_group;
+        return *this;
+    }
+
+    [[maybe_unused]] RunBuilder& create_no_window(bool no_window)
+    {
+        options.create_no_window = no_window;
+        return *this;
+    }
+
+    [[maybe_unused]] RunBuilder& detached_process(bool detached)
+    {
+        options.detached_process = detached;
         return *this;
     }
 

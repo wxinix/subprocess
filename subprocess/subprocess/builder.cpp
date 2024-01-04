@@ -9,6 +9,8 @@
 #endif
 #include <errno.h>
 #include <signal.h>
+#else
+#include "tlhelp32.h"
 #endif
 
 #include <mutex>
@@ -318,6 +320,8 @@ void Popen::init(CommandLine& command, RunOptions& options)
                   "Bad pipe value for cerr");
 
     builder.new_process_group = options.new_process_group;
+    builder.create_no_window = options.create_no_window;
+    builder.detached_process = options.detached_process;
     builder.env = options.env;
     builder.cwd = options.cwd;
 
@@ -346,6 +350,7 @@ Popen& Popen::operator=(Popen&& other) noexcept
     pid = other.pid;
     returncode = other.returncode;
     args = std::move(other.args);
+    m_soft_kill = other.m_soft_kill;
 
 #ifdef _WIN32
     process_info = other.process_info;
@@ -356,7 +361,7 @@ Popen& Popen::operator=(Popen&& other) noexcept
     other.cout = kBadPipeValue;
     other.cerr = kBadPipeValue;
     other.pid = 0U;
-    other.returncode = -1000;
+    other.returncode = kBadReturnCode;
     return *this;
 }
 
@@ -506,6 +511,89 @@ int64_t Popen::wait(double timeout)
     return this->returncode;
 }
 
+void TerminateChildProcesses(DWORD parentProcessID)
+{
+    // Take a snapshot of all processes in the system
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (hSnapshot == INVALID_HANDLE_VALUE)
+    {
+        return;
+    }
+
+    // Initialize the process entry structure
+    PROCESSENTRY32 pe32;
+    pe32.dwSize = sizeof(PROCESSENTRY32);
+
+    // Retrieve information about the first process in the snapshot
+    if (Process32First(hSnapshot, &pe32))
+    {
+        do
+        {
+            // Check if the process is a child of the specified parent
+            if (pe32.th32ParentProcessID == parentProcessID)
+            {
+                // Open the child process to obtain a handle
+                HANDLE hChildProcess = OpenProcess(PROCESS_TERMINATE, FALSE, pe32.th32ProcessID);
+                if (hChildProcess != NULL)
+                {
+                    // Terminate the child process
+                    TerminateProcess(hChildProcess, 0);
+                    // Close the handle to the child process
+                    CloseHandle(hChildProcess);
+                }
+            }
+        } while (Process32Next(hSnapshot, &pe32));
+    }
+
+    // Close the process snapshot handle
+    CloseHandle(hSnapshot);
+}
+
+std::vector<DWORD> GetChildProcessIDs(DWORD parentProcessID)
+{
+    std::vector<DWORD> childProcessIDs;
+
+    // Take a snapshot of all processes in the system
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (hSnapshot == INVALID_HANDLE_VALUE)
+    {
+        return childProcessIDs;
+    }
+
+    // Initialize the process entry structure
+    PROCESSENTRY32 pe32;
+    pe32.dwSize = sizeof(PROCESSENTRY32);
+
+    // Retrieve information about the first process in the snapshot
+    if (Process32First(hSnapshot, &pe32))
+    {
+        do
+        {
+            // Check if the process is a child of the specified parent
+            if (pe32.th32ParentProcessID == parentProcessID)
+            {
+                // Add the child process ID to the vector
+                childProcessIDs.push_back(pe32.th32ProcessID);
+            }
+        } while (Process32Next(hSnapshot, &pe32));
+    }
+
+    // Close the process snapshot handle
+    CloseHandle(hSnapshot);
+
+    return childProcessIDs;
+}
+
+void TerminateProcessByID(DWORD processID)
+{
+    HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, processID);
+    if (hProcess != NULL)
+    {
+        TerminateProcess(hProcess, 0);
+        CloseHandle(hProcess);
+    }
+}
+
 bool Popen::send_signal(SigNum signum) const
 {
     bool result;
@@ -518,8 +606,13 @@ bool Popen::send_signal(SigNum signum) const
     {
         if (signum == SigNum::PSIGKILL)
         {
+            auto ids = GetChildProcessIDs(process_info.dwProcessId);
             // 137 just like when a process is killed SIGKILL
             result = TerminateProcess(process_info.hProcess, 137U);
+            for (auto id: ids)
+            {
+                TerminateProcessByID(id);
+            }
         }
         else if (signum == SigNum::PSIGINT)
         {
@@ -555,7 +648,7 @@ bool Popen::send_signal(SigNum signum) const
 
 [[maybe_unused]] bool Popen::kill() const
 {
-    return send_signal(SigNum::PSIGKILL);
+    return m_soft_kill ? send_signal(SigNum::PSIGTERM) : send_signal(SigNum::PSIGKILL);
 }
 
 [[maybe_unused]] void Popen::ignore_cout()

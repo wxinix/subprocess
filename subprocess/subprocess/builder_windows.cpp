@@ -170,6 +170,16 @@ Popen ProcessBuilder::run_command(const CommandLine& cmdline)
         process_flags |= CREATE_NEW_PROCESS_GROUP; // NOLINT
     }
 
+    if(this->create_no_window)
+    {
+        process_flags |= CREATE_NO_WINDOW; // NOLINT
+    }
+
+    if(this->detached_process)
+    {
+        process_flags |= DETACHED_PROCESS; // NOLINT
+    }
+
     // Create the child process.
     bSuccess = CreateProcess(program.c_str(),
                              args.data(),   // command line
