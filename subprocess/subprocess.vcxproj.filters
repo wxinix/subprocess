@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\DevLibs\Cpp\subprocess\subprocess\subprocess\builder.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\DevLibs\Cpp\subprocess\subprocess\subprocess\builder_posix.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\DevLibs\Cpp\subprocess\subprocess\subprocess\builder_windows.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\DevLibs\Cpp\subprocess\subprocess\subprocess\environ.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\DevLibs\Cpp\subprocess\subprocess\subprocess\pipe.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\DevLibs\Cpp\subprocess\subprocess\subprocess\shellutils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\DevLibs\Cpp\subprocess\subprocess\subprocess\utf8_to_utf16.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\DevLibs\Cpp\subprocess\subprocess\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{755B3470-944E-3060-92BE-3466DFB97D67}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
