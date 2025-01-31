@@ -154,7 +154,7 @@ void pipe_thread(FILE* input, PipeHandle output, bool bautoclose)
     thread.detach();
 }
 
-void pipe_thread(const std::string& input, PipeHandle output, bool bautoclose)
+void pipe_thread(const std::string& input, [[maybe_unused]] PipeHandle output, [[maybe_unused]] bool bautoclose)
 {
     std::thread thread(
         [input, output, bautoclose]()
@@ -511,7 +511,7 @@ int64_t Popen::wait(double timeout)
     return this->returncode;
 }
 
-void TerminateChildProcesses(DWORD parentProcessID)
+[[maybe_unused]] void TerminateChildProcesses(DWORD parentProcessID)
 {
     // Take a snapshot of all processes in the system
     HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -534,7 +534,7 @@ void TerminateChildProcesses(DWORD parentProcessID)
             {
                 // Open the child process to obtain a handle
                 HANDLE hChildProcess = OpenProcess(PROCESS_TERMINATE, FALSE, pe32.th32ProcessID);
-                if (hChildProcess != NULL)
+                if (hChildProcess != nullptr)
                 {
                     // Terminate the child process
                     TerminateProcess(hChildProcess, 0);
@@ -587,7 +587,7 @@ std::vector<DWORD> GetChildProcessIDs(DWORD parentProcessID)
 void TerminateProcessByID(DWORD processID)
 {
     HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, processID);
-    if (hProcess != NULL)
+    if (hProcess != nullptr)
     {
         TerminateProcess(hProcess, 0);
         CloseHandle(hProcess);

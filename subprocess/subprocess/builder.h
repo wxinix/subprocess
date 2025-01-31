@@ -246,7 +246,7 @@ public:
      * the same as terminate().
      * @param value True to enable, false to disable.
      */
-    void enable_soft_kill(bool value)
+    [[maybe_unused]] void enable_soft_kill(bool value)
     {
         m_soft_kill = value;
     }

@@ -41,10 +41,11 @@ ENABLE_CXX_COMPILER_FLAG_IF_SUPPORTED(-pedantic)
 # MSVC only. __cplusplus macro will reflect the actual C++ standard version
 # supported by the compiler. For C++20, the value is 202002L
 if(MSVC)
-    add_compile_options(-Zc:__cplusplus)
+   add_compile_options(/Zc:__cplusplus)
 endif()
 
 message(STATUS "CMAKE_CXX_FLAGS = ${CMAKE_CXX_FLAGS}")
+message(STATUS "CMAKE_CXX_FLAGS_DEBUG = ${CMAKE_CXX_FLAGS_DEBUG}")
 
 # Include subdirectories for source code and tests
 add_subdirectory(subprocess)

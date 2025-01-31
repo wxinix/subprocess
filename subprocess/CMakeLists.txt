@@ -28,5 +28,3 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
         target_link_libraries(subprocess PUBLIC dl)
     endif ()
 endif ()
-
-
