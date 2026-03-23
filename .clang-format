@@ -1,0 +1,23 @@
+Language: Cpp
+Standard: Latest
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 120
+NamespaceIndentation: None
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortBlocksOnASingleLine: Always
+AllowShortEnumsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: WithoutElse
+Cpp11BracedListStyle: true
+PackConstructorInitializers: BinPack
+PointerAlignment: Left
+SpaceAfterTemplateKeyword: false
+SpaceBeforeParens: ControlStatements
+FixNamespaceComments: true
+AccessModifierOffset: -4
+AlwaysBreakTemplateDeclarations: Yes
+
+# Sort includes alphabetically within each block (separated by blank lines).
+# Preserve programmer's blank-line grouping rather than regrouping.
+SortIncludes: CaseInsensitive
+IncludeBlocks: Preserve
