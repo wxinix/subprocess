@@ -11,7 +11,7 @@ void simple() {
     using subprocess::RunBuilder;
 
     // Quick echo - doesn't capture
-    subprocess::run({"echo", "hello", "world"});
+    (void)subprocess::run({"echo", "hello", "world"});
 
     // Simplest capture output
     CompletedProcess process = subprocess::run({"echo", "hello", "world"}, RunBuilder().cout(PipeOption::pipe));
@@ -41,7 +41,7 @@ void popen_examples() {
     Popen popen = RunBuilder({"echo", "hello", "world"}).cout(PipeOption::pipe).popen();
 
     char buf[1024] = {};
-    subprocess::pipe_read(popen.cout, buf, 1024);
+    (void)subprocess::pipe_read(popen.cout, buf, 1024);
     std::print("{}", buf);
 
     popen.close();
@@ -50,12 +50,12 @@ void popen_examples() {
     popen = RunBuilder({"cat"}).cin(PipeOption::pipe).cout(PipeOption::pipe).popen();
 
     std::thread write_thread([&]() {
-        subprocess::pipe_write(popen.cin, "hello world\n", std::strlen("hello world\n"));
+        (void)subprocess::pipe_write(popen.cin, "hello world\n", std::strlen("hello world\n"));
         popen.close_cin();
     });
 
     std::fill(std::begin(buf), std::end(buf), 0);
-    subprocess::pipe_read(popen.cout, buf, 1024);
+    (void)subprocess::pipe_read(popen.cout, buf, 1024);
     std::print("{}", buf);
     popen.close();
 

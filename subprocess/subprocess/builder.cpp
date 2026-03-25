@@ -195,18 +195,10 @@ Popen::~Popen() {
     close();
 }
 
-// Helper lambda to close-and-reset a pipe handle, used in close()
 void Popen::close() {
-    const auto close_pipe = [](PipeHandle& h) {
-        if (h != kBadPipeValue) {
-            (void)pipe_close(h);
-            h = kBadPipeValue;
-        }
-    };
-
-    close_pipe(cin);
-    close_pipe(cout);
-    close_pipe(cerr);
+    close_and_reset(cin);
+    close_and_reset(cout);
+    close_and_reset(cerr);
 
     if (pid > 0) {
         (void)wait();
@@ -277,7 +269,7 @@ std::optional<int64_t> Popen::try_wait(const double timeout) {
 
 int64_t Popen::wait(const double timeout) {
     if (auto rc = try_wait(timeout)) return *rc;
-    throw TimeoutExpired(std::format("timeout expired"));
+    throw TimeoutExpired("timeout expired", args, timeout, {}, {});
 }
 
 template<typename Fn>
@@ -354,10 +346,7 @@ void Popen::ignore_output() {
 }
 
 void Popen::close_cin() {
-    if (cin != kBadPipeValue) {
-        (void)pipe_close(cin);
-        cin = kBadPipeValue;
-    }
+    close_and_reset(cin);
 }
 
 std::string ProcessBuilder::windows_command() const {
@@ -390,8 +379,7 @@ static void collect_outputs(Popen& popen, CompletedProcess& completed) {
     const auto collect = [](PipeHandle& handle, std::string& dest) {
         if (handle == kBadPipeValue) return;
         dest = pipe_read_all(handle);
-        (void)pipe_close(handle);
-        handle = kBadPipeValue;
+        close_and_reset(handle);
     };
 
     if (popen.cout != kBadPipeValue) cout_thread = std::thread([&]() { collect(popen.cout, completed.cout); });

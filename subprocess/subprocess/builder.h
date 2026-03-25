@@ -103,8 +103,8 @@ public:
     [[nodiscard]] Popen run_command(const CommandLine& cmdline) const;
 };
 
-CompletedProcess run(Popen& popen, bool check = false);
-CompletedProcess run(CommandLine command, const RunOptions& options = {});
+[[nodiscard]] CompletedProcess run(Popen& popen, bool check = false);
+[[nodiscard]] CompletedProcess run(CommandLine command, const RunOptions& options = {});
 
 /**
  * @brief Fluent builder using C++23 deducing this for perfect-forwarding chains.

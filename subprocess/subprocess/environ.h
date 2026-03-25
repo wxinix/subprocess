@@ -49,8 +49,8 @@ public:
 
 extern Environ cenv;
 
-EnvMap current_env_copy();
-std::u16string create_env_block(const EnvMap& map);
+[[nodiscard]] EnvMap current_env_copy();
+[[nodiscard]] std::u16string create_env_block(const EnvMap& map);
 
 class CwdGuard {
 public:

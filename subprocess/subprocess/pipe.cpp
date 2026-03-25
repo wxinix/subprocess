@@ -248,10 +248,11 @@ std::string pipe_read_all(const PipeHandle handle) {
     std::string result;
     if (handle == kBadPipeValue) return result;
 
-    char buf[kPipeBufferSize];
+    std::array<char, kPipeBufferSize> buf{};
 
-    for (ssize_t n = pipe_read(handle, buf, kPipeBufferSize); n > 0; n = pipe_read(handle, buf, kPipeBufferSize)) {
-        result.append(buf, static_cast<size_t>(n));
+    for (ssize_t n = pipe_read(handle, buf.data(), buf.size()); n > 0;
+         n = pipe_read(handle, buf.data(), buf.size())) {
+        result.append(buf.data(), static_cast<size_t>(n));
     }
 
     return result;

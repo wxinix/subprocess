@@ -84,11 +84,9 @@ std::string join_path(std::string parent, std::string child) {
 std::vector<std::string> split_path(const std::string& s) {
     if (s.empty()) return {};
 
-    std::vector<std::string> result;
-    for (auto part : s | std::views::split(kPathDelimiter))
-        result.emplace_back(part.begin(), part.end());
-
-    return result;
+    return s | std::views::split(kPathDelimiter)
+             | std::views::transform([](auto&& r) { return std::string(r.begin(), r.end()); })
+             | std::ranges::to<std::vector>();
 }
 
 std::string try_exe(const std::string& path) {

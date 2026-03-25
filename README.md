@@ -2,7 +2,9 @@
 
 A modern C++23 subprocess library inspired by Python's `subprocess` module, with first-class Windows support.
 
-Originally forked from [benman64/subprocess](https://github.com/benman64/subprocess), this codebase has been extensively rewritten with modern C++23 idioms, const correctness, and cross-platform reliability. Maintained by [@wxinix](https://github.com/wxinix).
+> **Note:** This library is a **ground-up rewrite** inspired by the original [benman64/subprocess](https://github.com/benman64/subprocess). While the original project (C++17, cross-platform) provided the foundational design and API philosophy, this codebase has been **completely rewritten** to embrace modern C++23 — including deducing `this`, concepts, `std::expected`-style patterns, `std::format`, `std::print`, designated initializers, and `std::ranges`. The architecture, implementation details, error handling, and Windows backend are all new. If you need C++17 compatibility or full POSIX support, use the [original repository](https://github.com/benman64/subprocess).
+
+Maintained by [@wxinix](https://github.com/wxinix).
 
 ## Features
 
@@ -18,7 +20,7 @@ Originally forked from [benman64/subprocess](https://github.com/benman64/subproc
 
 ## Requirements
 
-- **C++23** (MSVC 19.37+, GCC 13+, Clang 17+)
+- **C++23** (MSVC 19.37+, GCC 14+, Clang 17+)
 - **CMake 3.27+**
 - On Unix-like systems, link with pthread
 
@@ -468,7 +470,7 @@ std::runtime_error
 - **`std::string::contains()`** and **`starts_with()`** for cleaner string checks
 - **`std::optional`** for `try_wait()` — no-throw timeout handling
 - **`std::print` / `std::println`** in test utilities
-- **`std::ranges::replace`** and **`std::ranges::any_of`** for algorithm clarity
+- **`std::ranges::replace`**, **`std::ranges::any_of`**, and **`std::ranges::to`** for algorithm clarity
 - **`using enum`** for cleaner switch statements
 - **Concepts and `requires` clauses** for template constraints
 - **Designated initializers** for `RunOptions` configuration

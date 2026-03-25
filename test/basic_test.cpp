@@ -439,7 +439,7 @@ TEST_CASE("TEST_CASE - popen") {
     SUBCASE("can run timeout") {
         subprocess::EnvGuard guard;
         prepend_this_to_path();
-        CHECK_THROWS_AS(subprocess::run({"sleep", "3"}, {.new_process_group = true, .timeout = 1}),
+        CHECK_THROWS_AS((void)subprocess::run({"sleep", "3"}, {.new_process_group = true, .timeout = 1}),
                         subprocess::TimeoutExpired);
     }
 
@@ -599,7 +599,7 @@ TEST_CASE("TEST_CASE - subprocess::run") {
     }
 
     SUBCASE("will throw on not found") {
-        CHECK_THROWS_AS(subprocess::run({"yay-322"}), subprocess::CommandNotFoundError);
+        CHECK_THROWS_AS((void)subprocess::run({"yay-322"}), subprocess::CommandNotFoundError);
     }
 
     SUBCASE("can use C++20 designated initializers") {
@@ -618,7 +618,7 @@ TEST_CASE("TEST_CASE - subprocess::run") {
         prepend_this_to_path();
 
         CHECK_THROWS_AS(
-            subprocess::run({"printenv", "NONEXISTENT_VAR_XYZ"}, {.cout = PipeOption::pipe, .raise_on_nonzero = true}),
+            (void)subprocess::run({"printenv", "NONEXISTENT_VAR_XYZ"}, {.cout = PipeOption::pipe, .raise_on_nonzero = true}),
             subprocess::CalledProcessError);
     }
 
@@ -777,7 +777,7 @@ TEST_CASE("TEST_CASE - subprocess::RunBuilder") {
 TEST_CASE("TEST_CASE - error handling") {
     SUBCASE("CommandNotFoundError has message") {
         try {
-            subprocess::run({"nonexistent_command_xyz"});
+            (void)subprocess::run({"nonexistent_command_xyz"});
             CHECK(false);
         } catch (const subprocess::CommandNotFoundError& e) {
             const std::string msg = e.what();
@@ -790,7 +790,7 @@ TEST_CASE("TEST_CASE - error handling") {
         prepend_this_to_path();
 
         try {
-            subprocess::run({"printenv", "NONEXISTENT"}, {.cout = PipeOption::pipe, .raise_on_nonzero = true});
+            (void)subprocess::run({"printenv", "NONEXISTENT"}, {.cout = PipeOption::pipe, .raise_on_nonzero = true});
             CHECK(false);
         } catch (const subprocess::CalledProcessError& e) {
             CHECK_NE(e.returncode, 0);
@@ -803,7 +803,7 @@ TEST_CASE("TEST_CASE - error handling") {
         prepend_this_to_path();
 
         try {
-            subprocess::run({"sleep", "10"}, {.new_process_group = true, .timeout = 1});
+            (void)subprocess::run({"sleep", "10"}, {.new_process_group = true, .timeout = 1});
             CHECK(false);
         } catch (const subprocess::TimeoutExpired& e) {
             CHECK(e.timeout == 1.0);
@@ -816,13 +816,13 @@ TEST_CASE("TEST_CASE - error handling") {
         subprocess::EnvGuard guard;
         prepend_this_to_path();
         try {
-            subprocess::run({"printenv", "NONEXISTENT"}, {.cout = PipeOption::pipe, .raise_on_nonzero = true});
+            (void)subprocess::run({"printenv", "NONEXISTENT"}, {.cout = PipeOption::pipe, .raise_on_nonzero = true});
         } catch (const subprocess::SubprocessError&) {
             CHECK(true); // caught as base class
         }
 
         try {
-            subprocess::run({"nonexistent_xyz_123"});
+            (void)subprocess::run({"nonexistent_xyz_123"});
         } catch (const std::runtime_error&) {
             CHECK(true); // caught as runtime_error
         }

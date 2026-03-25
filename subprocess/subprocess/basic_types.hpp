@@ -116,9 +116,9 @@ struct SpawnError : OSError {
 struct TimeoutExpired : SubprocessError {
     using SubprocessError::SubprocessError;
 
-    TimeoutExpired(const std::string& msg, CommandLine a_cmd, const double a_timeout, std::string a_cout,
+    TimeoutExpired(std::string msg, CommandLine a_cmd, const double a_timeout, std::string a_cout,
                    std::string a_cerr)
-        : SubprocessError{msg}, cmd{std::move(a_cmd)}, timeout{a_timeout}, cout{std::move(a_cout)},
+        : SubprocessError{std::move(msg)}, cmd{std::move(a_cmd)}, timeout{a_timeout}, cout{std::move(a_cout)},
           cerr{std::move(a_cerr)} {}
 
     CommandLine cmd;
@@ -130,9 +130,9 @@ struct TimeoutExpired : SubprocessError {
 struct CalledProcessError : SubprocessError {
     using SubprocessError::SubprocessError;
 
-    CalledProcessError(const std::string& msg, CommandLine a_cmd, const int64_t retcode, std::string a_cout,
+    CalledProcessError(std::string msg, CommandLine a_cmd, const int64_t retcode, std::string a_cout,
                        std::string a_cerr)
-        : SubprocessError{msg}, returncode{retcode}, cmd{std::move(a_cmd)}, cout{std::move(a_cout)},
+        : SubprocessError{std::move(msg)}, returncode{retcode}, cmd{std::move(a_cmd)}, cout{std::move(a_cout)},
           cerr{std::move(a_cerr)} {}
 
     int64_t returncode;

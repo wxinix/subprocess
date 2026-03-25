@@ -34,7 +34,7 @@ struct PipePair {
     void close_input() { close_handle(&PipePair::input); }
     void close_output() { close_handle(&PipePair::output); }
 
-    explicit operator bool() const noexcept { return input != output; }
+    explicit operator bool() const noexcept { return input != kBadPipeValue || output != kBadPipeValue; }
 
 private:
     void close_handle(PipeHandle PipePair::*member);
@@ -42,30 +42,38 @@ private:
 
 // Core pipe operations
 bool pipe_close(PipeHandle handle);
-PipePair pipe_create(bool inheritable = true);
+[[nodiscard]] PipePair pipe_create(bool inheritable = true);
 void pipe_set_inheritable(PipeHandle handle, bool inheritable);
+
+/** @brief Closes a pipe handle and resets it to kBadPipeValue. No-op if already invalid. */
+inline void close_and_reset(PipeHandle& h) {
+    if (h != kBadPipeValue) {
+        (void)pipe_close(h);
+        h = kBadPipeValue;
+    }
+}
 
 // Blocking mode control
 bool pipe_set_blocking(PipeHandle handle, bool should_block);
 
 // Read operations
-ssize_t pipe_read(PipeHandle handle, void* buffer, size_t size);
-std::string pipe_read_all(PipeHandle handle);
+[[nodiscard]] ssize_t pipe_read(PipeHandle handle, void* buffer, size_t size);
+[[nodiscard]] std::string pipe_read_all(PipeHandle handle);
 
 /** @brief Peeks at the number of bytes available for reading without consuming them.
  *  @return Number of available bytes, or -1 on error. */
-ssize_t pipe_peek_bytes(PipeHandle handle);
+[[nodiscard]] ssize_t pipe_peek_bytes(PipeHandle handle);
 
 /** @brief Reads at least 1 byte, then reads whatever else is available without blocking.
  *  Blocks until the first byte arrives, then drains the available buffer.
  *  @return Total bytes read, or <= 0 on error/EOF. */
-ssize_t pipe_read_some(PipeHandle handle, void* buffer, size_t size);
+[[nodiscard]] ssize_t pipe_read_some(PipeHandle handle, void* buffer, size_t size);
 
 /** @brief Waits until data is available for reading, or timeout expires.
  *  @param handle
  *  @param seconds Timeout in seconds (-1 for infinite).
  *  @return 1 if data available, 0 on timeout, -1 on error/closed. */
-int pipe_wait_for_read(PipeHandle handle, double seconds);
+[[nodiscard]] int pipe_wait_for_read(PipeHandle handle, double seconds);
 
 // Write operations
 ssize_t pipe_write(PipeHandle handle, const void* buffer, size_t size);
@@ -78,7 +86,7 @@ ssize_t pipe_write_fully(PipeHandle handle, const void* buffer, size_t size);
 /** @brief Opens a file and returns a pipe-compatible handle.
  *  @param filename Path to the file (UTF-8).
  *  @param mode "r" for read, "w" for write, "r+" for read/write. */
-PipeHandle pipe_file(std::string_view filename, std::string_view mode);
+[[nodiscard]] PipeHandle pipe_file(std::string_view filename, std::string_view mode);
 
 // Utilities
 void pipe_ignore_and_close(PipeHandle handle);
