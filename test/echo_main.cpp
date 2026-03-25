@@ -2,10 +2,10 @@
 #include <cstring>
 #include <print>
 
-#include <subprocess.h>
+#include <subproc.hpp>
 
 int main(int argc, char** argv) {
-    std::string use_cerr_str = subprocess::cenv["USE_CERR"];
+    std::string use_cerr_str = subproc::cenv["USE_CERR"];
     bool use_cerr = use_cerr_str == "1";
     auto output_file = use_cerr ? stderr : stdout;
     bool print_space = false;

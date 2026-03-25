@@ -1,6 +1,6 @@
 #include <print>
 
-#include <subprocess.h>
+#include <subproc.hpp>
 
 int main(int argc, char** argv) {
     if (argc != 2) {
@@ -10,7 +10,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    std::string result = subprocess::cenv[argv[1]];
+    std::string result = subproc::cenv[argv[1]];
     if (result.empty()) return 1;
 
     std::println("{}", result);

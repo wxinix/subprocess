@@ -3,45 +3,45 @@
 #include <print>
 #include <thread>
 
-#include <subprocess.h>
+#include <subproc.hpp>
 
 void simple() {
-    using subprocess::CompletedProcess;
-    using subprocess::PipeOption;
-    using subprocess::RunBuilder;
+    using subproc::CompletedProcess;
+    using subproc::PipeOption;
+    using subproc::RunBuilder;
 
     // Quick echo - doesn't capture
-    (void)subprocess::run({"echo", "hello", "world"});
+    (void)subproc::run({"echo", "hello", "world"});
 
     // Simplest capture output
-    CompletedProcess process = subprocess::run({"echo", "hello", "world"}, RunBuilder().cout(PipeOption::pipe));
+    CompletedProcess process = subproc::run({"echo", "hello", "world"}, RunBuilder().cout(PipeOption::pipe));
 
     // Simplest send & capture
-    process = subprocess::run({"cat"}, RunBuilder().cin("hello world").cout(PipeOption::pipe));
+    process = subproc::run({"cat"}, RunBuilder().cin("hello world").cout(PipeOption::pipe));
     std::println("Captured: {}", process.cout);
 
     // Capture stderr too, will throw CalledProcessError if returncode != 0
-    process = subprocess::run({"echo", "hello", "world"},
+    process = subproc::run({"echo", "hello", "world"},
                               RunBuilder().cerr(PipeOption::pipe).cout(PipeOption::pipe).raise_on_nonzero(true));
 
     std::println("cerr was: {}", process.cerr);
 
     // C++20 designated initializers
-    process = subprocess::run({"echo", "hello", "world"}, {.cout = PipeOption::pipe, .raise_on_nonzero = false});
+    process = subproc::run({"echo", "hello", "world"}, {.cout = PipeOption::pipe, .raise_on_nonzero = false});
     std::println("captured: {}", process.cout);
 }
 
 void popen_examples() {
-    using subprocess::CompletedProcess;
-    using subprocess::PipeOption;
-    using subprocess::Popen;
-    using subprocess::RunBuilder;
+    using subproc::CompletedProcess;
+    using subproc::PipeOption;
+    using subproc::Popen;
+    using subproc::RunBuilder;
 
     // Simplest example; capture is enabled by default
     Popen popen = RunBuilder({"echo", "hello", "world"}).cout(PipeOption::pipe).popen();
 
     char buf[1024] = {};
-    (void)subprocess::pipe_read(popen.cout, buf, 1024);
+    (void)subproc::pipe_read(popen.cout, buf, 1024);
     std::print("{}", buf);
 
     popen.close();
@@ -50,12 +50,12 @@ void popen_examples() {
     popen = RunBuilder({"cat"}).cin(PipeOption::pipe).cout(PipeOption::pipe).popen();
 
     std::thread write_thread([&]() {
-        (void)subprocess::pipe_write(popen.cin, "hello world\n", std::strlen("hello world\n"));
+        (void)subproc::pipe_write(popen.cin, "hello world\n", std::strlen("hello world\n"));
         popen.close_cin();
     });
 
     std::fill(std::begin(buf), std::end(buf), 0);
-    (void)subprocess::pipe_read(popen.cout, buf, 1024);
+    (void)subproc::pipe_read(popen.cout, buf, 1024);
     std::print("{}", buf);
     popen.close();
 
@@ -64,17 +64,17 @@ void popen_examples() {
 
 int main(int, char** argv) {
     try {
-        std::string envPath = subprocess::cenv["PATH"];
+        std::string envPath = subproc::cenv["PATH"];
         std::filesystem::path exeDir = std::filesystem::path{argv[0]}.parent_path();
-        envPath = envPath + subprocess::kPathDelimiter + exeDir.string();
-        subprocess::cenv["PATH"] = envPath;
+        envPath = envPath + subproc::kPathDelimiter + exeDir.string();
+        subproc::cenv["PATH"] = envPath;
 
         std::println("Running basic examples.");
         simple();
         std::println("Running popen_examples.");
         popen_examples();
         return 0;
-    } catch (subprocess::SubprocessError& e) {
+    } catch (subproc::SubprocError& e) {
         std::println(stderr, "{}", e.what());
         return -1;
     }

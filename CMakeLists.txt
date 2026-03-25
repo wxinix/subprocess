@@ -24,7 +24,7 @@ function(ENABLE_CXX_COMPILER_FLAG_IF_SUPPORTED flag)
 endfunction()
 
 # Project setup
-project(subprocess VERSION 0.6.0 LANGUAGES CXX C)
+project(subproc VERSION 0.7.0 LANGUAGES CXX C)
 
 # Set C++ standard to 23
 set(CMAKE_CXX_STANDARD 23)
@@ -44,6 +44,10 @@ endif()
 message(STATUS "CMAKE_CXX_FLAGS = ${CMAKE_CXX_FLAGS}")
 message(STATUS "CMAKE_CXX_FLAGS_DEBUG = ${CMAKE_CXX_FLAGS_DEBUG}")
 
-# Include subdirectories for source code and tests
-add_subdirectory(subprocess)
+# Header-only library — just an include path
+find_package(Threads REQUIRED)
+add_library(subproc INTERFACE)
+target_include_directories(subproc INTERFACE subproc)
+target_link_libraries(subproc INTERFACE Threads::Threads)
+
 add_subdirectory(test)

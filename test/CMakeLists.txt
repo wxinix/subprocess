@@ -6,7 +6,7 @@ message(STATUS "DOCTEST_PATH = ${DOCTEST_PATH}")
 # Function for basic setup of a target
 function(SETUP_DOCTEST name)
     target_include_directories(${name} PUBLIC ${DOCTEST_PATH})
-    target_link_libraries(${name} PUBLIC subprocess)
+    target_link_libraries(${name} PUBLIC subproc)
 
     # Additional settings for GNU compiler
     if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
@@ -29,8 +29,8 @@ endfunction(CREATE_DOCTEST)
 # Example usage of cxx_test function with a specific test file
 CREATE_DOCTEST(${CMAKE_CURRENT_LIST_DIR}/basic_test.cpp)
 
-# Link libraries for the subprocess examples
-link_libraries(subprocess)
+# Link libraries for the subproc examples
+link_libraries(subproc)
 
 # Add executable targets for various examples
 add_executable(cat ./cat_child.cpp)
