@@ -220,18 +220,18 @@ CompletedProcess run(Popen& popen, bool check = false);
 
 ### `RunOptions`
 
-| Field               | Type          | Default   | Description                                |
-|---------------------|---------------|-----------|--------------------------------------------|
+| Field               | Type          | Default   | Description                                 |
+|---------------------|---------------|-----------|---------------------------------------------|
 | `cin`               | `PipeVar`     | `inherit` | stdin: `PipeOption`, `string`, handle, etc. |
-| `cout`              | `PipeVar`     | `inherit` | stdout redirection                         |
-| `cerr`              | `PipeVar`     | `inherit` | stderr redirection                         |
-| `cwd`               | `std::string` | `""`      | Working directory                          |
-| `env`               | `EnvMap`      | `{}`      | Environment variables (empty = inherit)    |
-| `timeout`           | `double`      | `-1`      | Timeout in seconds (-1 = none)             |
-| `raise_on_nonzero`  | `bool`        | `false`   | Throw `CalledProcessError` on failure      |
-| `new_process_group` | `bool`        | `false`   | Create a new process group                 |
-| `create_no_window`  | `bool`        | `false`   | No console window                          |
-| `detached_process`  | `bool`        | `false`   | Detached from parent console               |
+| `cout`              | `PipeVar`     | `inherit` | stdout redirection                          |
+| `cerr`              | `PipeVar`     | `inherit` | stderr redirection                          |
+| `cwd`               | `std::string` | `""`      | Working directory                           |
+| `env`               | `EnvMap`      | `{}`      | Environment variables (empty = inherit)     |
+| `timeout`           | `double`      | `-1`      | Timeout in seconds (-1 = none)              |
+| `raise_on_nonzero`  | `bool`        | `false`   | Throw `CalledProcessError` on failure       |
+| `new_process_group` | `bool`        | `false`   | Create a new process group                  |
+| `create_no_window`  | `bool`        | `false`   | No console window                           |
+| `detached_process`  | `bool`        | `false`   | Detached from parent console                |
 
 ### `PipeOption`
 
@@ -271,21 +271,21 @@ CompletedProcess run(Popen& popen, bool check = false);
 
 ### Pipe Functions
 
-| Function | Description |
-|----------|-------------|
-| `pipe_create(inheritable)` | Creates a `PipePair` (input + output handles) |
-| `pipe_close(handle)` | Closes a pipe handle |
-| `pipe_read(handle, buf, size)` | Reads up to `size` bytes (blocks if empty) |
-| `pipe_write(handle, buf, size)` | Writes up to `size` bytes |
-| `pipe_read_all(handle)` | Reads until EOF, returns `std::string` |
-| `pipe_write_fully(handle, buf, size)` | Writes entire buffer, retrying partial writes |
-| `pipe_peek_bytes(handle)` | Returns bytes available without consuming them |
-| `pipe_read_some(handle, buf, size)` | Blocks for 1 byte, then drains available data |
-| `pipe_wait_for_read(handle, seconds)` | Waits for data: 1=ready, 0=timeout, -1=error |
-| `pipe_set_blocking(handle, block)` | Toggles blocking/non-blocking mode |
-| `pipe_set_inheritable(handle, inherit)` | Controls child handle inheritance |
-| `pipe_file(filename, mode)` | Opens a file as a pipe handle |
-| `pipe_ignore_and_close(handle)` | Spawns a thread to drain and close the pipe |
+| Function                                | Description                                    |
+|-----------------------------------------|------------------------------------------------|
+| `pipe_create(inheritable)`              | Creates a `PipePair` (input + output handles)  |
+| `pipe_close(handle)`                    | Closes a pipe handle                           |
+| `pipe_read(handle, buf, size)`          | Reads up to `size` bytes (blocks if empty)     |
+| `pipe_write(handle, buf, size)`         | Writes up to `size` bytes                      |
+| `pipe_read_all(handle)`                 | Reads until EOF, returns `std::string`         |
+| `pipe_write_fully(handle, buf, size)`   | Writes entire buffer, retrying partial writes  |
+| `pipe_peek_bytes(handle)`               | Returns bytes available without consuming them |
+| `pipe_read_some(handle, buf, size)`     | Blocks for 1 byte, then drains available data  |
+| `pipe_wait_for_read(handle, seconds)`   | Waits for data: 1=ready, 0=timeout, -1=error   |
+| `pipe_set_blocking(handle, block)`      | Toggles blocking/non-blocking mode             |
+| `pipe_set_inheritable(handle, inherit)` | Controls child handle inheritance              |
+| `pipe_file(filename, mode)`             | Opens a file as a pipe handle                  |
+| `pipe_ignore_and_close(handle)`         | Spawns a thread to drain and close the pipe    |
 
 ### Exception Hierarchy
 
