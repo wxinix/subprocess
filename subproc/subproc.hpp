@@ -1,3 +1,7 @@
+// MIT License
+// Copyright (c) 2020-2026 Wuping Xin
+// Copyright (c) 2020 benman64
+
 #pragma once
 
 // =============================================================================
