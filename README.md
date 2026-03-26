@@ -1,14 +1,12 @@
 # subproc
 
-A modern C++23 **single-header** subprocess library for Windows, inspired by Python's `subprocess` module.
+A modern C++23 **single-header** subprocess library for Windows, inspired by Python's `subprocess` module.  
 
-**Just one file** — drop [`subproc.hpp`](subproc/subproc.hpp) into your project and `#include` it. No `.cpp` files, no build steps, no linking required.
+To use it, just drop [`subproc.hpp`](subproc/subproc.hpp) into your project and `#include` it. No `.cpp` files, no build steps, no linking required.
 
 ```cpp
 #include <subproc.hpp>
 ```
-
-Maintained by [@wxinix](https://github.com/wxinix).
 
 ## Features
 
@@ -52,18 +50,24 @@ build/debug/test/Debug/basic_test.exe --verbose
 
 ### Running a Command
 
+The simplest usage — launch a program and let its output go directly to the console (inheriting the parent's stdout). The argument to `run()` is a `CommandLine` (`std::vector<std::string>`) where the first element (`"echo"`) is the program to execute, and the remaining elements (`"hello"`, `"world"`) are passed as its arguments.
+
 ```cpp
 subproc::run({"echo", "hello", "world"});
+// "echo" is the program, "hello" and "world" are its arguments
+// Console output: hello world
 ```
 
 ### Capturing Output
 
+To capture a command's output as a string instead of printing it, set `.cout = PipeOption::pipe`. This creates an anonymous pipe between parent and child, collecting everything the child writes to stdout into `CompletedProcess::cout`.
+
 ```cpp
-// Designated initializers
+// Using C++20 designated initializers
 auto cp = subproc::run({"echo", "hello"}, {.cout = PipeOption::pipe});
 // cp.cout == "hello\r\n", cp.returncode == 0
 
-// Fluent RunBuilder
+// Using the fluent RunBuilder — same result, different syntax
 auto cp2 = subproc::RunBuilder({"echo", "hello"})
     .cout(PipeOption::pipe)
     .run();
@@ -71,16 +75,23 @@ auto cp2 = subproc::RunBuilder({"echo", "hello"})
 
 ### Capturing Both stdout and stderr
 
+Pipe both streams separately to inspect them independently. Or merge stderr into stdout with `PipeOption::cout` (equivalent to shell `2>&1`) so all output lands in `cp.cout`.
+
 ```cpp
+// Separate capture — stdout and stderr in their own fields
 auto cp = subproc::run({"my_program"},
     {.cout = PipeOption::pipe, .cerr = PipeOption::pipe});
+// cp.cout has stdout, cp.cerr has stderr
 
 // Merge stderr into stdout (like shell 2>&1)
 auto cp2 = subproc::run({"my_program"},
     {.cout = PipeOption::pipe, .cerr = PipeOption::cout});
+// cp2.cout has both stdout and stderr combined
 ```
 
 ### Sending Data to stdin
+
+Pass a `std::string` to `cin` via `RunBuilder` to feed data into the child's standard input. The library writes the string to a pipe connected to the child's stdin, then closes the pipe (signaling EOF) so the child knows input is complete.
 
 ```cpp
 auto cp = subproc::run({"cat"},
@@ -90,33 +101,42 @@ auto cp = subproc::run({"cat"},
 
 ### Checking for Errors
 
+By default, `run()` does not throw on non-zero exit codes — it just sets `returncode`. Set `raise_on_nonzero = true` to throw a `CalledProcessError` instead, which includes the exit code and any captured output. Alternatively, use the bool conversion operator to check success.
+
 ```cpp
+// Throw on failure
 try {
     auto cp = subproc::run({"false"}, {.raise_on_nonzero = true});
 } catch (const subproc::CalledProcessError& e) {
     std::println("Command failed with code {}", e.returncode);
 }
 
-// Or inspect the return code directly
+// Or inspect the return code manually
 auto cp = subproc::run({"my_program"}, {.cout = PipeOption::pipe});
-if (cp) { /* success */ }
+if (cp) { /* returncode == 0, success */ }
 ```
 
 ### Timeouts
+
+Set `timeout` (in seconds) to limit how long `run()` waits. If the process doesn't finish in time, `run()` terminates it and throws `TimeoutExpired`. The exception carries the timeout value and any output captured before the timeout.
 
 ```cpp
 try {
     subproc::run({"sleep", "30"}, {.timeout = 5.0});
 } catch (const subproc::TimeoutExpired& e) {
-    // e.timeout == 5.0
+    // e.timeout == 5.0, process has been terminated
 }
 ```
 
 ### Custom Working Directory and Environment
 
+Set `cwd` to run the child in a different directory. Pass a custom `env` map to replace the child's entire environment — use `current_env_copy()` to start from the current environment and then modify it, rather than building one from scratch.
+
 ```cpp
+// Run in a specific directory
 auto cp = subproc::run({"dir"}, {.cout = PipeOption::pipe, .cwd = "C:/temp"});
 
+// Run with a modified environment
 auto env = subproc::current_env_copy();
 env["MY_VAR"] = "my_value";
 auto cp2 = subproc::run({"printenv", "MY_VAR"}, {.cout = PipeOption::pipe, .env = env});
@@ -124,20 +144,23 @@ auto cp2 = subproc::run({"printenv", "MY_VAR"}, {.cout = PipeOption::pipe, .env 
 
 ### Asynchronous Control with Popen
 
+Use `popen()` instead of `run()` when you need to interact with the process while it's running. `Popen` gives you non-blocking `poll()`, timeout-safe `try_wait()`, and signal control. Always call `close()` when done to release handles.
+
 ```cpp
 auto popen = subproc::RunBuilder({"long_running_cmd"})
     .cout(PipeOption::pipe)
-    .new_process_group(true)
+    .new_process_group(true)    // required for targeted signal delivery
     .popen();
 
+// Non-blocking check: do other work while the process runs
 while (!popen.poll()) { /* do other work */ }
 std::println("exit code: {}", popen.returncode);
 
-// Or wait with timeout (no exceptions)
+// Or wait with a timeout (no exceptions — returns nullopt on timeout)
 if (auto rc = popen.try_wait(5.0)) {
     std::println("exited with {}", *rc);
 } else {
-    popen.terminate();
+    popen.terminate();  // graceful shutdown via CTRL_BREAK_EVENT
     popen.wait();
 }
 popen.close();
@@ -145,32 +168,40 @@ popen.close();
 
 ### Piping Between Processes
 
+Connect the stdout of one process to the stdin of another using a manually created pipe. Create a non-inheritable pipe, pass the write end as one process's stdout and the read end as another's stdin, then close the parent's copies.
+
 ```cpp
-auto pp = subproc::pipe_create(false);
+auto pp = subproc::pipe_create(false);  // non-inheritable pipe pair
 auto writer = subproc::RunBuilder({"echo", "hello"}).cout(pp.output).popen();
 auto reader = subproc::RunBuilder({"cat"}).cin(pp.input).cout(PipeOption::pipe).popen();
-pp.close();
-auto result = subproc::run(reader);  // result.cout == "hello\r\n"
+pp.close();  // parent doesn't need these ends anymore
+
+auto result = subproc::run(reader);  // collect reader's output
+// result.cout == "hello\r\n"
 writer.close(); reader.close();
 ```
 
 ### Environment Management
 
+`subproc::cenv` provides dictionary-style access to the current process's environment. It supports strings, integers, booleans, and `nullptr` (to delete). `EnvGuard` snapshots the environment and working directory on construction and restores both when it goes out of scope.
+
 ```cpp
-subproc::cenv["MY_VAR"] = "value";    // set
-subproc::cenv["COUNT"] = 42;          // int
-subproc::cenv["DEBUG"] = true;        // bool -> "1"
-subproc::cenv["MY_VAR"] = nullptr;    // delete
-if (subproc::cenv["MY_VAR"]) { /* exists */ }
+subproc::cenv["MY_VAR"] = "value";    // set a string
+subproc::cenv["COUNT"] = 42;          // int → "42"
+subproc::cenv["DEBUG"] = true;        // bool → "1"
+subproc::cenv["MY_VAR"] = nullptr;    // delete the variable
+if (subproc::cenv["MY_VAR"]) { /* exists and non-empty */ }
 
 {
     subproc::EnvGuard guard;           // snapshot env + cwd
     subproc::cenv["PATH"] = "C:/custom";
-    // ... run subprocesses ...
-}  // auto-restored
+    // ... run subprocesses with modified environment ...
+}  // environment and cwd automatically restored
 ```
 
 ### Windows-Specific Options
+
+Control Windows process creation flags. `create_no_window` suppresses the console window (useful for background tasks). `detached_process` detaches the child from the parent console. `new_process_group` is required for sending targeted signals via `terminate()`.
 
 ```cpp
 auto cp = subproc::run({"background_tool"},
@@ -181,11 +212,13 @@ auto cp = subproc::run({"background_tool"},
 
 ### Signal Handling
 
+On Windows, `terminate()` sends `CTRL_BREAK_EVENT` (graceful — the child can handle it), while `kill()` calls `TerminateProcess` (immediate, cannot be caught). Enable soft kill to make `kill()` behave like `terminate()`, giving the child a chance to clean up.
+
 ```cpp
 auto popen = subproc::RunBuilder({"server"}).new_process_group(true).popen();
 popen.send_signal(subproc::SigNum::PSIGTERM);  // CTRL_BREAK_EVENT
 popen.terminate();                               // same as PSIGTERM
-popen.kill();                                    // TerminateProcess
+popen.kill();                                    // TerminateProcess (hard kill)
 
 popen.enable_soft_kill(true);
 popen.kill();  // now sends CTRL_BREAK instead of TerminateProcess
@@ -193,17 +226,19 @@ popen.kill();  // now sends CTRL_BREAK instead of TerminateProcess
 
 ### Advanced Pipe Operations
 
+Low-level pipe functions for when you need fine-grained control over I/O. These let you peek at available data, do partial reads, wait for data with a timeout, toggle blocking mode, and use files as pipe handles.
+
 ```cpp
 auto pp = subproc::pipe_create(false);
 
-ssize_t available = subproc::pipe_peek_bytes(pp.input);
+ssize_t available = subproc::pipe_peek_bytes(pp.input);       // check without consuming
 char buf[4096];
-ssize_t n = subproc::pipe_read_some(pp.input, buf, sizeof(buf));
-ssize_t written = subproc::pipe_write_fully(pp.output, data.c_str(), data.size());
-int status = subproc::pipe_wait_for_read(pp.input, 5.0);  // 1=ready, 0=timeout, -1=error
-subproc::pipe_set_blocking(pp.input, false);
+ssize_t n = subproc::pipe_read_some(pp.input, buf, sizeof(buf)); // block for 1 byte, drain rest
+ssize_t written = subproc::pipe_write_fully(pp.output, data.c_str(), data.size()); // write all
+int status = subproc::pipe_wait_for_read(pp.input, 5.0);     // 1=ready, 0=timeout, -1=error
+subproc::pipe_set_blocking(pp.input, false);                   // switch to non-blocking
 
-// File as pipe handle
+// Use a file as a pipe handle for subprocess I/O
 auto h = subproc::pipe_file("input.txt", "r");
 auto cp = subproc::run({"tool"}, subproc::RunBuilder().cin(h).cout(PipeOption::pipe));
 (void)subproc::pipe_close(h);
@@ -211,93 +246,22 @@ auto cp = subproc::run({"tool"}, subproc::RunBuilder().cin(h).cout(PipeOption::p
 
 ## API Reference
 
-### `subproc::run()`
+Detailed documentation for each API component:
 
-```cpp
-CompletedProcess run(CommandLine command, const RunOptions& options = {});
-CompletedProcess run(Popen& popen, bool check = false);
-```
-
-### `RunOptions`
-
-| Field               | Type          | Default   | Description                                 |
-|---------------------|---------------|-----------|---------------------------------------------|
-| `cin`               | `PipeVar`     | `inherit` | stdin: `PipeOption`, `string`, handle, etc. |
-| `cout`              | `PipeVar`     | `inherit` | stdout redirection                          |
-| `cerr`              | `PipeVar`     | `inherit` | stderr redirection                          |
-| `cwd`               | `std::string` | `""`      | Working directory                           |
-| `env`               | `EnvMap`      | `{}`      | Environment variables (empty = inherit)     |
-| `timeout`           | `double`      | `-1`      | Timeout in seconds (-1 = none)              |
-| `raise_on_nonzero`  | `bool`        | `false`   | Throw `CalledProcessError` on failure       |
-| `new_process_group` | `bool`        | `false`   | Create a new process group                  |
-| `create_no_window`  | `bool`        | `false`   | No console window                           |
-| `detached_process`  | `bool`        | `false`   | Detached from parent console                |
-
-### `PipeOption`
-
-| Value      | Description             | Python Equivalent       |
-|------------|-------------------------|-------------------------|
-| `inherit`  | Inherit parent's handle | Default behavior        |
-| `pipe`     | Create a new pipe       | `subprocess.PIPE`       |
-| `cout`     | Redirect to stdout      | `subprocess.STDOUT`     |
-| `cerr`     | Redirect to stderr      | *(no equivalent)*       |
-| `close`    | Close the descriptor    | `subprocess.DEVNULL`    |
-| `none`     | No file descriptor      | *(no equivalent)*       |
-| `specific` | Use a provided handle   | *(via handle argument)* |
-
-### `CompletedProcess`
-
-| Field             | Type          | Description                             |
-|-------------------|---------------|-----------------------------------------|
-| `args`            | `CommandLine` | Command that was executed               |
-| `returncode`      | `int64_t`     | Exit code (negative = killed by signal) |
-| `cout`            | `std::string` | Captured stdout (empty if not piped)    |
-| `cerr`            | `std::string` | Captured stderr (empty if not piped)    |
-| `operator bool()` |               | `true` if `returncode == 0`             |
-
-### `Popen`
-
-| Method                | Description                                            |
-|-----------------------|--------------------------------------------------------|
-| `poll()`              | Returns `true` if process has exited                   |
-| `wait(timeout)`       | Blocks until exit; throws `TimeoutExpired` on timeout  |
-| `try_wait(timeout)`   | Returns `std::optional<int64_t>`; `nullopt` on timeout |
-| `send_signal(sig)`    | Sends a signal to the process                          |
-| `terminate()`         | `CTRL_BREAK_EVENT` (graceful)                          |
-| `kill()`              | `TerminateProcess` (hard kill)                         |
-| `close()`             | Closes all pipes, waits for exit, cleans up handles    |
-| `close_cin()`         | Closes stdin pipe (signals EOF to child)               |
-| `enable_soft_kill(b)` | If true, `kill()` sends `CTRL_BREAK` instead           |
-
-### Pipe Functions
-
-| Function                                | Description                                    |
-|-----------------------------------------|------------------------------------------------|
-| `pipe_create(inheritable)`              | Creates a `PipePair` (input + output handles)  |
-| `pipe_close(handle)`                    | Closes a pipe handle                           |
-| `pipe_read(handle, buf, size)`          | Reads up to `size` bytes (blocks if empty)     |
-| `pipe_write(handle, buf, size)`         | Writes up to `size` bytes                      |
-| `pipe_read_all(handle)`                 | Reads until EOF, returns `std::string`         |
-| `pipe_write_fully(handle, buf, size)`   | Writes entire buffer, retrying partial writes  |
-| `pipe_peek_bytes(handle)`               | Returns bytes available without consuming them |
-| `pipe_read_some(handle, buf, size)`     | Blocks for 1 byte, then drains available data  |
-| `pipe_wait_for_read(handle, seconds)`   | Waits for data: 1=ready, 0=timeout, -1=error   |
-| `pipe_set_blocking(handle, block)`      | Toggles blocking/non-blocking mode             |
-| `pipe_set_inheritable(handle, inherit)` | Controls child handle inheritance              |
-| `pipe_file(filename, mode)`             | Opens a file as a pipe handle                  |
-| `pipe_ignore_and_close(handle)`         | Spawns a thread to drain and close the pipe    |
-
-### Exception Hierarchy
-
-```
-std::runtime_error
-  └── SubprocError
-        ├── OSError
-        │     └── SpawnError
-        ├── CommandNotFoundError
-        ├── CalledProcessError  (returncode, cmd, cout, cerr)
-        └── TimeoutExpired      (timeout, cmd, cout, cerr)
-```
+| Document | Description |
+|----------|-------------|
+| [`run()`](doc/run.md) | Primary entry point — run a command and collect results |
+| [`RunBuilder`](doc/run-builder.md) | Fluent builder for configuring and launching subprocesses |
+| [`RunOptions`](doc/run-options.md) | Configuration struct for `run()` (stdin/stdout/stderr, timeout, env, cwd) |
+| [`PipeOption`](doc/pipe-option.md) | Enum controlling stream redirection between parent and child |
+| [`CompletedProcess`](doc/completed-process.md) | Result struct returned by `run()` (exit code, captured output) |
+| [`Popen`](doc/popen.md) | Asynchronous process control (poll, wait, signal, pipe I/O) |
+| [Pipe Functions](doc/pipe-functions.md) | Low-level pipe creation, reading, writing, and management |
+| [Environment Management](doc/environment.md) | `cenv`, `EnvGuard`, `CwdGuard`, `current_env_copy()` |
+| [Exception Hierarchy](doc/exceptions.md) | `SubprocError`, `CalledProcessError`, `TimeoutExpired`, etc. |
+| [`find_program()`](doc/find-program.md) | Locate executables on PATH with Python 3 detection |
+| [Signal Handling](doc/signals.md) | Windows signal mapping, soft kill, process groups |
+| [Utility Functions](doc/utilities.md) | Paths, shell escaping, timing, string conversion, constants |
 
 ## C++23 Features Used
 
