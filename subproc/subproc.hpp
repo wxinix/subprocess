@@ -184,11 +184,20 @@ size_t strlen16(const CharT* input) {
 
 inline std::u16string utf8_to_utf16(const std::string& input) {
     if (input.empty()) return {};
-    const auto size = input.size() + 1;
-    const auto buffer = std::make_unique<wchar_t[]>(size);
-    const int n = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, input.c_str(), static_cast<int>(size),
-                                      buffer.get(), static_cast<int>(size));
-    return (n > 0) ? std::u16string{buffer.get(), buffer.get() + n - 1} : std::u16string{};
+    const auto size = static_cast<int>(input.size() + 1);
+
+    // Stack buffer for typical short strings; heap fallback for long ones.
+    constexpr int kStackBufSize = 256;
+    wchar_t stack_buf[kStackBufSize];
+    wchar_t* buf = (size <= kStackBufSize) ? stack_buf : nullptr;
+    std::unique_ptr<wchar_t[]> heap_buf;
+    if (!buf) {
+        heap_buf = std::make_unique<wchar_t[]>(static_cast<size_t>(size));
+        buf = heap_buf.get();
+    }
+
+    const int n = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, input.c_str(), size, buf, size);
+    return (n > 0) ? std::u16string{buf, buf + n - 1} : std::u16string{};
 }
 
 #ifdef __MINGW32__
@@ -221,6 +230,24 @@ inline std::string lptstr_to_string(LPTSTR input) { // NOLINT
 }
 
 // =============================================================================
+// StopWatch (defined early — used by pipe_wait_for_read)
+// =============================================================================
+
+class StopWatch {
+public:
+    StopWatch() { start(); }
+    void start() { m_start = monotonic_seconds(); }
+    [[nodiscard]] double seconds() const { return monotonic_seconds() - m_start; }
+
+private:
+    static double monotonic_seconds() {
+        static const auto begin = std::chrono::steady_clock::now();
+        return std::chrono::duration<double>(std::chrono::steady_clock::now() - begin).count();
+    }
+    double m_start = 0.0;
+};
+
+// =============================================================================
 // Pipe types and operations
 // =============================================================================
 
@@ -231,9 +258,12 @@ struct PipePair {
 
     PipePair(const PipePair&) = delete;
     PipePair& operator=(const PipePair&) = delete;
-    PipePair(PipePair&& other) noexcept { *this = std::move(other); }
+    PipePair(PipePair&& other) noexcept : input(other.input), output(other.output) {
+        other.disown();
+    }
 
     PipePair& operator=(PipePair&& other) noexcept {
+        if (this == &other) return *this;
         close();
         input = other.input;
         output = other.output;
@@ -297,7 +327,7 @@ inline void pipe_set_inheritable(const PipeHandle handle, const bool inheritable
     return ReadFile(handle, buffer, static_cast<DWORD>(size), &bread, nullptr) ? static_cast<ssize_t>(bread) : -1;
 }
 
-inline ssize_t pipe_write(const PipeHandle handle, const void* buffer, const size_t size) {
+[[nodiscard]] inline ssize_t pipe_write(const PipeHandle handle, const void* buffer, const size_t size) {
     DWORD written = 0;
     return WriteFile(handle, buffer, static_cast<DWORD>(size), &written, nullptr) ? static_cast<ssize_t>(written) : -1;
 }
@@ -328,7 +358,7 @@ inline ssize_t pipe_write(const PipeHandle handle, const void* buffer, const siz
     return (more < 0) ? more : 1 + more;
 }
 
-inline ssize_t pipe_write_fully(const PipeHandle handle, const void* buffer, const size_t size) {
+[[nodiscard]] inline ssize_t pipe_write_fully(const PipeHandle handle, const void* buffer, const size_t size) {
     auto* cursor = static_cast<const uint8_t*>(buffer);
     ssize_t total = 0;
     while (static_cast<size_t>(total) < size) {
@@ -341,7 +371,7 @@ inline ssize_t pipe_write_fully(const PipeHandle handle, const void* buffer, con
     return total;
 }
 
-inline bool pipe_set_blocking(const PipeHandle handle, const bool should_block) {
+[[nodiscard]] inline bool pipe_set_blocking(const PipeHandle handle, const bool should_block) {
     DWORD state = 0;
     if (!GetNamedPipeHandleStateA(handle, &state, nullptr, nullptr, nullptr, nullptr, 0)) return false;
     if (should_block)
@@ -369,7 +399,8 @@ inline bool pipe_set_blocking(const PipeHandle handle, const bool should_block) 
     };
 
     const BlockingGuard guard(handle);
-    const double remaining = seconds;
+    const StopWatch watch;
+    double remaining = seconds;
     while (true) {
         const auto dw_timeout = static_cast<DWORD>(remaining < 0 ? INFINITE : remaining * 1000.0);
         const DWORD result = WaitForSingleObject(handle, dw_timeout);
@@ -377,8 +408,10 @@ inline bool pipe_set_blocking(const PipeHandle handle, const bool should_block) 
             DWORD available = 0;
             if (!PeekNamedPipe(handle, nullptr, 0, nullptr, &available, nullptr)) return -1;
             if (available > 0) return 1;
-            if (remaining < 0) continue;
-            return 0;
+            if (seconds < 0) continue;  // infinite timeout: retry
+            remaining = seconds - watch.seconds();
+            if (remaining <= 0) return 0;  // time exhausted on spurious wake
+            continue;
         }
         if (result == WAIT_TIMEOUT) return 0;
         return -1;
@@ -635,16 +668,21 @@ inline std::vector<std::string> split_path(const std::string& s) {
            std::ranges::to<std::vector>();
 }
 
+inline const std::vector<std::string>& get_pathext() {
+    static const auto extensions = [] {
+        auto ext_str = getenv("PATHEXT");
+        if (ext_str.empty()) ext_str = ".exe";
+        return split_path(ext_str);
+    }();
+    return extensions;
+}
+
 inline std::string try_exe(const std::string& path) {
     if (is_file(path)) return path;
-    std::string path_ext = getenv("PATHEXT");
-    if (path_ext.empty()) path_ext = "exe";
-
-    for (const auto& ext : split_path(path_ext)) {
+    for (const auto& ext : get_pathext()) {
         if (ext.empty()) continue;
         if (const auto test_path = path + ext; is_file(test_path)) return test_path;
     }
-
     return {};
 }
 
@@ -661,18 +699,25 @@ inline std::string make_abspath(std::string dir, std::string relative = "") {
 
 inline std::string find_program_in_path(const std::string& name) {
     if (name.empty()) return {};
-    std::scoped_lock lock(g_program_cache_mutex);
 
+    // Absolute/relative paths bypass the cache — no lock needed.
     if (name.size() >= 2 && (is_absolute_path(name) || name.starts_with("./") || name[0] == '/')) {
         if (is_file(name)) return make_abspath(name);
         if (const auto p = try_exe(name); !p.empty() && is_file(p)) return make_abspath(p);
     }
 
-    if (g_program_cache.contains(name)) return g_program_cache[name];
+    // Check cache under lock.
+    {
+        std::scoped_lock lock(g_program_cache_mutex);
+        if (const auto it = g_program_cache.find(name); it != g_program_cache.end())
+            return it->second;
+    }
 
+    // Search PATH without holding the lock (filesystem I/O).
     for (const auto& dir : split_path(getenv("PATH"))) {
         if (dir.empty()) continue;
         if (const auto p = try_exe(std::format("{}/{}", dir, name)); !p.empty() && is_file(p)) {
+            std::scoped_lock lock(g_program_cache_mutex);
             g_program_cache[name] = p;
             return p;
         }
@@ -817,22 +862,8 @@ private:
 };
 
 // =============================================================================
-// StopWatch / sleep
+// sleep
 // =============================================================================
-
-class StopWatch {
-public:
-    StopWatch() { start(); }
-    void start() { m_start = monotonic_seconds(); }
-    [[nodiscard]] double seconds() const { return monotonic_seconds() - m_start; }
-
-private:
-    static double monotonic_seconds() {
-        static const auto begin = std::chrono::steady_clock::now();
-        return std::chrono::duration<double>(std::chrono::steady_clock::now() - begin).count();
-    }
-    double m_start = 0.0;
-};
 
 inline double sleep_seconds(const double seconds) {
     const StopWatch watch;
@@ -908,6 +939,7 @@ private:
     bool m_soft_kill{false};
 };
 
+// Internal — used by Popen::init() to configure and launch processes.
 class ProcessBuilder {
 public:
     PipeOption cerr_option{PipeOption::inherit};
@@ -923,14 +955,17 @@ public:
     EnvMap env{};
     std::string cwd{};
 
-    [[nodiscard]] std::string windows_command() const { return command[0]; }
+    [[nodiscard]] std::string windows_command() const {
+        if (command.empty()) throw std::invalid_argument("ProcessBuilder: command is empty");
+        return command[0];
+    }
     [[nodiscard]] std::string windows_args() const { return windows_args(command); }
 
     static std::string windows_args(const CommandLine& cmd) {
         std::string args;
         for (size_t i = 0; i < cmd.size(); ++i) {
             if (i > 0) args += ' ';
-            args += escape_shell_arg(cmd[i], false);
+            args += cmd[i];
         }
         return args;
     }
@@ -1027,6 +1062,7 @@ inline Popen::Popen(Popen&& other) noexcept {
 }
 
 inline Popen& Popen::operator=(Popen&& other) noexcept {
+    if (this == &other) return *this;
     close();
     cin = other.cin;
     cout = other.cout;
@@ -1056,9 +1092,14 @@ inline void Popen::close() {
     close_and_reset(cerr);
 
     if (pid > 0) {
-        (void)wait();
+        try {
+            (void)wait();
+        } catch (...) {
+            // Suppress exceptions — close() is called from destructor and noexcept move.
+        }
         (void)CloseHandle(process_info.hProcess);
         (void)CloseHandle(process_info.hThread);
+        process_info = {};
     }
 
     pid = 0;
@@ -1215,7 +1256,9 @@ inline Popen ProcessBuilder::run_command(const CommandLine& cmdline) const {
     detail::collect_outputs(popen, completed);
     (void)popen.wait();
     completed.returncode = popen.returncode;
-    completed.args = CommandLine(popen.args.begin() + 1, popen.args.end());
+    completed.args = popen.args.size() > 1
+                         ? CommandLine(popen.args.begin() + 1, popen.args.end())
+                         : CommandLine{};
     if (check)
         throw CalledProcessError{"failed to execute " + popen.args[0], popen.args, completed.returncode, completed.cout,
                                  completed.cerr};

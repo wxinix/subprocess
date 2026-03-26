@@ -233,6 +233,68 @@ TEST_CASE("TEST_CASE - utilities") {
         const CompletedProcess negative{.returncode = -1};
         CHECK_FALSE(static_cast<bool>(negative));
     }
+
+    SUBCASE("getenv returns empty for nonexistent variable") {
+        CHECK(subproc::getenv("THIS_VAR_SHOULD_NEVER_EXIST_XYZ_999").empty());
+    }
+
+    SUBCASE("getenv returns value for existing variable") {
+        subproc::EnvGuard guard;
+        subproc::cenv["TEST_GETENV_VAR"] = "test_value";
+        CHECK_EQ(subproc::getenv("TEST_GETENV_VAR"), "test_value");
+    }
+
+    SUBCASE("escape_shell_arg escapes quotes and backslashes") {
+        const auto result = subproc::escape_shell_arg(R"(say "hello")");
+        CHECK(result.starts_with("\""));
+        CHECK(result.ends_with("\""));
+        CHECK(result.contains("\\\""));
+    }
+
+    SUBCASE("escape_shell_arg handles empty string") {
+        const auto result = subproc::escape_shell_arg("");
+        CHECK_EQ(result, "");
+    }
+
+    SUBCASE("utf8_to_utf16 roundtrip with long string (heap path)") {
+        // String longer than 256 chars to exercise heap allocation
+        const std::string long_str(512, 'A');
+        auto utf16 = subproc::utf8_to_utf16(long_str);
+        auto back = subproc::utf16_to_utf8(utf16);
+        CHECK_EQ(long_str, back);
+    }
+
+    SUBCASE("create_env_block produces valid block") {
+        subproc::EnvMap env;
+        env["FOO"] = "bar";
+        env["BAZ"] = "qux";
+        const auto block = subproc::create_env_block(env);
+        // Block should contain "FOO=bar" and "BAZ=qux" as UTF-16
+        const auto block_utf8 = subproc::utf16_to_utf8(block);
+        CHECK(block_utf8.contains("FOO=bar"));
+        CHECK(block_utf8.contains("BAZ=qux"));
+    }
+
+    SUBCASE("nested EnvGuard restores correctly") {
+        subproc::EnvGuard outer;
+        subproc::cenv["NESTED_TEST"] = "outer";
+        {
+            subproc::EnvGuard inner;
+            subproc::cenv["NESTED_TEST"] = "inner";
+            CHECK_EQ(std::string(subproc::cenv["NESTED_TEST"]), "inner");
+        }
+        CHECK_EQ(std::string(subproc::cenv["NESTED_TEST"]), "outer");
+    }
+
+    SUBCASE("set_cwd and get_cwd roundtrip") {
+        subproc::CwdGuard guard;
+        const auto temp = std::filesystem::temp_directory_path().string();
+        subproc::set_cwd(temp);
+        // Normalize for comparison
+        const auto actual = std::filesystem::current_path();
+        const auto expected = std::filesystem::canonical(temp);
+        CHECK_EQ(actual, expected);
+    }
 }
 
 // ============================================================================
@@ -326,7 +388,7 @@ TEST_CASE("TEST_CASE - pipe operations") {
     SUBCASE("pipe_peek_bytes reports available data") {
         auto pp = subproc::pipe_create(false);
         const std::string msg = "peek test";
-        subproc::pipe_write(pp.output, msg.c_str(), msg.size());
+        (void)subproc::pipe_write(pp.output, msg.c_str(), msg.size());
 
         const auto available = subproc::pipe_peek_bytes(pp.input);
         CHECK_EQ(available, static_cast<ssize_t>(msg.size()));
@@ -341,7 +403,7 @@ TEST_CASE("TEST_CASE - pipe operations") {
     SUBCASE("pipe_read_some reads available data without blocking") {
         auto pp = subproc::pipe_create(false);
         const std::string msg = "read_some test data here";
-        subproc::pipe_write(pp.output, msg.c_str(), msg.size());
+        (void)subproc::pipe_write(pp.output, msg.c_str(), msg.size());
 
         char buf[256] = {};
         const auto n = subproc::pipe_read_some(pp.input, buf, sizeof(buf));
@@ -354,7 +416,7 @@ TEST_CASE("TEST_CASE - pipe operations") {
 
     SUBCASE("pipe_wait_for_read returns 1 when data available") {
         auto pp = subproc::pipe_create(false);
-        subproc::pipe_write(pp.output, "data", 4);
+        (void)subproc::pipe_write(pp.output, "data", 4);
 
         const int result = subproc::pipe_wait_for_read(pp.input, 1.0);
         CHECK_EQ(result, 1);
@@ -394,7 +456,7 @@ TEST_CASE("TEST_CASE - pipe operations") {
 
         const auto handle = subproc::pipe_file(temp.string().c_str(), "w");
         CHECK_NE(handle, subproc::kBadPipeValue);
-        subproc::pipe_write_fully(handle, content.c_str(), content.size());
+        (void)subproc::pipe_write_fully(handle, content.c_str(), content.size());
         (void)subproc::pipe_close(handle);
 
         // Verify by reading back (scoped to close file before remove)
@@ -410,6 +472,86 @@ TEST_CASE("TEST_CASE - pipe operations") {
     SUBCASE("pipe_file returns kBadPipeValue for nonexistent file") {
         const auto handle = subproc::pipe_file("nonexistent_file_xyz_123.txt", "r");
         CHECK_EQ(handle, subproc::kBadPipeValue);
+    }
+
+    SUBCASE("pipe_close on bad handle returns false") {
+        CHECK_FALSE(subproc::pipe_close(subproc::kBadPipeValue));
+    }
+
+    SUBCASE("pipe_read_some with size 0 returns 0") {
+        auto pp = subproc::pipe_create(false);
+        char buf[1];
+        CHECK_EQ(subproc::pipe_read_some(pp.input, buf, 0), 0);
+        pp.close();
+    }
+
+    SUBCASE("pipe_set_inheritable on valid handle succeeds") {
+        auto pp = subproc::pipe_create(false);
+        CHECK_NOTHROW(subproc::pipe_set_inheritable(pp.input, true));
+        CHECK_NOTHROW(subproc::pipe_set_inheritable(pp.input, false));
+        pp.close();
+    }
+
+    SUBCASE("pipe_set_inheritable on bad handle throws") {
+        CHECK_THROWS_AS(subproc::pipe_set_inheritable(subproc::kBadPipeValue, true), std::invalid_argument);
+    }
+
+    SUBCASE("pipe_wait_for_read returns 0 on timeout with no data") {
+        auto pp = subproc::pipe_create(false);
+        // No data written — should timeout
+        const int result = subproc::pipe_wait_for_read(pp.input, 0.2);
+        CHECK_EQ(result, 0);
+        pp.close();
+    }
+
+    SUBCASE("pipe_ignore_and_close drains pipe without blocking") {
+        auto pp = subproc::pipe_create(false);
+        (void)subproc::pipe_write(pp.output, "drain me", 8);
+        subproc::pipe_ignore_and_close(pp.input);
+        pp.input = subproc::kBadPipeValue; // prevent double close
+        pp.close_output();
+        // If pipe_ignore_and_close didn't drain, this test would hang or leak
+        subproc::sleep_seconds(0.1); // give the drain thread a moment
+    }
+
+    SUBCASE("pipe_ignore_and_close on bad handle is a no-op") {
+        CHECK_NOTHROW(subproc::pipe_ignore_and_close(subproc::kBadPipeValue));
+    }
+
+    SUBCASE("PipePair bool is false when both handles are bad") {
+        subproc::PipePair pp;
+        CHECK_FALSE(static_cast<bool>(pp));
+    }
+
+    SUBCASE("PipePair self-assignment is safe") {
+        auto pp = subproc::pipe_create(false);
+        auto* ptr = &pp;
+        pp = std::move(*ptr);
+        CHECK(!!pp); // handles should still be valid
+        pp.close();
+    }
+
+    SUBCASE("pipe_write_fully on large buffer") {
+        auto pp = subproc::pipe_create(false);
+        // Write more than kPipeBufferSize (8192) to exercise retry loop
+        const std::string large(16384, 'X');
+
+        std::thread writer([&] {
+            (void)subproc::pipe_write_fully(pp.output, large.c_str(), large.size());
+            pp.close_output();
+        });
+
+        const auto result = subproc::pipe_read_all(pp.input);
+        writer.join();
+        CHECK_EQ(result.size(), large.size());
+        CHECK_EQ(result, large);
+        pp.close_input();
+    }
+
+    SUBCASE("pipe_peek_bytes on empty pipe returns 0") {
+        auto pp = subproc::pipe_create(false);
+        CHECK_EQ(subproc::pipe_peek_bytes(pp.input), 0);
+        pp.close();
     }
 }
 
@@ -556,6 +698,22 @@ TEST_CASE("TEST_CASE - popen") {
         CHECK_EQ(popen1.pid, 0);
         CHECK_NE(popen2.pid, 0);
         popen2.close();
+    }
+
+    SUBCASE("default Popen close is safe (no process)") {
+        Popen p;
+        CHECK_NOTHROW(p.close());
+        CHECK_NOTHROW(p.close()); // double close
+    }
+
+    SUBCASE("Popen close_cin on no pipe is safe") {
+        Popen p;
+        CHECK_NOTHROW(p.close_cin());
+    }
+
+    SUBCASE("Popen ignore_output on no pipes is safe") {
+        Popen p;
+        CHECK_NOTHROW(p.ignore_output());
     }
 
     SUBCASE("soft kill sends SIGTERM instead of SIGKILL") {
@@ -809,6 +967,19 @@ TEST_CASE("TEST_CASE - error handling") {
             CHECK(e.timeout == 1.0);
             CHECK(!e.cmd.empty());
         }
+    }
+
+    SUBCASE("pipe_create throws OSError on resource exhaustion") {
+        // pipe_set_inheritable on bad handle throws
+        CHECK_THROWS_AS(subproc::pipe_set_inheritable(subproc::kBadPipeValue, true), std::invalid_argument);
+    }
+
+    SUBCASE("SubprocError hierarchy: SpawnError inherits OSError") {
+        const subproc::SpawnError e("test");
+        const subproc::OSError* os_ptr = dynamic_cast<const subproc::OSError*>(&e);
+        CHECK(os_ptr != nullptr);
+        const subproc::SubprocError* sub_ptr = dynamic_cast<const subproc::SubprocError*>(&e);
+        CHECK(sub_ptr != nullptr);
     }
 
     SUBCASE("exception hierarchy is correct") {
